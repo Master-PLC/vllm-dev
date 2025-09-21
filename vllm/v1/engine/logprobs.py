@@ -27,9 +27,11 @@ class LogprobsProcessor:
 
     # Logprobs for this request
     logprobs: Optional[SampleLogprobs]
+    logits: Optional[list[list[list[float]]]]
     prompt_logprobs: Optional[PromptLogprobs]
     cumulative_logprob: Optional[float]
     num_logprobs: Optional[int]
+    return_logits: bool
     num_prompt_logprobs: Optional[int]
 
     # --- fields for confidence-based early stopping ---
@@ -46,6 +48,7 @@ class LogprobsProcessor:
         request: EngineCoreRequest,
     ) -> "LogprobsProcessor":
         num_logprobs = request.sampling_params.logprobs
+        return_logits = request.sampling_params.return_logits
         num_prompt_logprobs = request.sampling_params.prompt_logprobs
         if hasattr(request.sampling_params, "extra_args") \
             and request.sampling_params.extra_args is not None \
@@ -65,10 +68,12 @@ class LogprobsProcessor:
             tokenizer=tokenizer,
             cumulative_logprob=(None if num_logprobs is None else 0.),
             logprobs=(None if num_logprobs is None else []),
+            logits=(None if not return_logits else []),
             # NOTE: logprob of first prompt token is None.
             prompt_logprobs=(None if num_prompt_logprobs is None else [None]),
             num_prompt_logprobs=num_prompt_logprobs,
             num_logprobs=num_logprobs,
+            return_logits=return_logits,
             conf_group_size=conf_group_size,
             conf_grouped=conf_grouped,
             conf_list=conf_list,
@@ -137,6 +142,15 @@ class LogprobsProcessor:
                     self.conf_grouped -= self.conf_group_list.popleft()
                     self.conf_group_list.append(new_conf)
                     self.conf_grouped += new_conf
+
+    def _update_logits(
+        self,
+        logits: list[list[float]],
+    ) -> None:
+        assert self.return_logits
+        assert self.logits is not None
+
+        self.logits.append(logits)
 
     def _update_prompt_logprobs(
         self,
@@ -245,5 +259,7 @@ class LogprobsProcessor:
     def update_from_output(self, output: EngineCoreOutput) -> None:
         if output.new_logprobs is not None:
             self._update_sample_logprobs(output.new_logprobs)
+        if output.new_logits is not None:
+            self._update_logits(output.new_logits)
         if output.new_prompt_logprobs_tensors is not None:
             self._update_prompt_logprobs(output.new_prompt_logprobs_tensors)
