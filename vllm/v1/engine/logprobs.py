@@ -135,13 +135,11 @@ class LogprobsProcessor:
                     new_conf = 0.0
                 self.conf_list.append(new_conf)
 
-                if len(self.conf_group_list) < self.conf_group_size:
-                    self.conf_group_list.append(new_conf)
-                    self.conf_grouped += new_conf
-                else:
-                    self.conf_grouped -= self.conf_group_list.popleft()
-                    self.conf_group_list.append(new_conf)
-                    self.conf_grouped += new_conf
+            if len(self.conf_group_list) >= self.conf_group_size:
+                self.conf_grouped -= self.conf_group_list.popleft()
+                
+            self.conf_group_list.append(new_conf)
+            self.conf_grouped += new_conf
 
     def _update_logits(
         self,
